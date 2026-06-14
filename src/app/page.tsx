@@ -40,6 +40,21 @@ const STORAGE_KEYS = {
   PROFILE_NAME: 'naija_mass_profile_name'
 };
 
+// Helper to group calorie entries by date string
+function groupEntriesByDate(entries: CalorieEntry[]) {
+  return entries.reduce((groups: { [key: string]: CalorieEntry[] }, entry) => {
+    const dateStr = new Date(entry.timestamp).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    if (!groups[dateStr]) groups[dateStr] = [];
+    groups[dateStr].push(entry);
+    return groups;
+  }, {});
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [calorieEntries, setCalorieEntries] = useState<CalorieEntry[]>([]);
@@ -283,23 +298,24 @@ export default function App() {
           )}
 
           {activeTab === 'calories' && (
-            <CaloriesView
-              quickFoods={quickFoods}
-              selectedQuickFood={selectedQuickFood}
-              setSelectedQuickFood={setSelectedQuickFood}
-              handleQuickAdd={handleQuickAdd}
-              customFood={customFood} setCustomFood={setCustomFood}
-              customKcal={customKcal} setCustomKcal={setCustomKcal}
-              customProtein={customProtein} setCustomProtein={setCustomProtein}
-              customCarbs={customCarbs} setCustomCarbs={setCustomCarbs}
-              customFats={customFats} setCustomFats={setCustomFats}
-              handleCustomAdd={handleCustomAdd}
-              todayEntries={todayEntries}
-              computedTotal={totals.kcal}
-              handleDeleteEntry={(id: string) => setCalorieEntries(calorieEntries.filter(e => e.id !== id))}
-              handleClearToday={() => setCalorieEntries(calorieEntries.filter(e => new Date(e.timestamp).toDateString() !== today))}
-            />
-          )}
+  <CaloriesView
+    quickFoods={quickFoods}
+    selectedQuickFood={selectedQuickFood}
+    setSelectedQuickFood={setSelectedQuickFood}
+    handleQuickAdd={handleQuickAdd}
+    customFood={customFood} setCustomFood={setCustomFood}
+    customKcal={customKcal} setCustomKcal={setCustomKcal}
+    customProtein={customProtein} setCustomProtein={setCustomProtein}
+    customCarbs={customCarbs} setCustomCarbs={setCustomCarbs}
+    customFats={customFats} setCustomFats={setCustomFats}
+    handleCustomAdd={handleCustomAdd}
+    todayEntries={todayEntries}
+    computedTotal={totals.kcal}
+    handleDeleteEntry={(id: string) => setCalorieEntries(calorieEntries.filter(e => e.id !== id))}
+    handleClearToday={() => setCalorieEntries(calorieEntries.filter(e => new Date(e.timestamp).toDateString() !== today))}
+    allEntries={calorieEntries} // <-- ADD THIS LINE HERE
+  />
+)}
 
           {activeTab === 'meals' && (
             <MealsView mealPlans={mealPlans} mealLogStatus={mealLogStatus} handleLogMeal={handleLogMeal} />
@@ -424,16 +440,29 @@ function MacroProgressLabel({ label, current, target, color, unit }: any) {
 }
 
 // Updated Calories Input Grid Configuration Dashboard Layer
+// Updated Calories View with Organized Historical Feed
 function CaloriesView({
   quickFoods, selectedQuickFood, setSelectedQuickFood, handleQuickAdd,
   customFood, setCustomFood, customKcal, setCustomKcal,
   customProtein, setCustomProtein, customCarbs, setCustomCarbs, customFats, setCustomFats,
-  handleCustomAdd, todayEntries, computedTotal, handleDeleteEntry, handleClearToday
+  handleCustomAdd, todayEntries, computedTotal, handleDeleteEntry, handleClearToday,
+  allEntries // Add this new prop
 }: any) {
+  
+  const todayStr = new Date().toDateString();
+  
+  // Filter out today's entries to build the historical timeline archive
+  const historicalEntries = allEntries.filter(
+    (e: any) => new Date(e.timestamp).toDateString() !== todayStr
+  );
+  
+  const groupedHistory = groupEntriesByDate(historicalEntries);
+
   return (
     <div className="space-y-5">
+      {/* Quick Add Module */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h3 className="text-white text-xs uppercase tracking-wider font-bold mb-3">Quick Add Local Foods</h3>
+        <h3 className="text-white text-xs uppercase tracking-wider font-bold mb-3">Quick Add Local Staples</h3>
         <div className="flex gap-2">
           <select
             value={selectedQuickFood} onChange={(e) => setSelectedQuickFood(e.target.value)}
@@ -444,10 +473,13 @@ function CaloriesView({
               <option key={f.name} value={f.name}>{f.name} ({f.kcal} kcal)</option>
             ))}
           </select>
-          <button onClick={handleQuickAdd} disabled={!selectedQuickFood} className="p-2.5 bg-zinc-200 text-black rounded-lg disabled:opacity-20"><Plus className="w-4 h-4 stroke-[3]" /></button>
+          <button onClick={handleQuickAdd} disabled={!selectedQuickFood} className="p-2.5 bg-zinc-200 text-black rounded-lg disabled:opacity-20">
+            <Plus className="w-4 h-4 stroke-[3]" />
+          </button>
         </div>
       </div>
 
+      {/* Custom Blueprint Logger */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
         <h3 className="text-white text-xs uppercase tracking-wider font-bold mb-3.5">Custom Entry Blueprint</h3>
         <div className="space-y-2.5">
@@ -465,13 +497,14 @@ function CaloriesView({
         </div>
       </div>
 
+      {/* Active Live Day Module */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
         <div className="flex justify-between border-b border-zinc-800 pb-3 mb-2">
           <h3 className="text-white text-xs uppercase tracking-wider font-bold">Today's Intake Feed</h3>
           <span className="text-sm font-black text-white">{computedTotal} <span className="text-[10px] text-zinc-500 font-medium">kcal</span></span>
         </div>
         {todayEntries.length === 0 ? (
-          <p className="text-zinc-600 text-xs text-center py-8">No caloric macronutrients logged today</p>
+          <p className="text-zinc-600 text-xs text-center py-6">No caloric macronutrients logged today</p>
         ) : (
           <div className="space-y-1 max-h-[220px] overflow-y-auto divide-y divide-zinc-800/40">
             {todayEntries.map((entry: any) => (
@@ -492,6 +525,45 @@ function CaloriesView({
           </div>
         )}
       </div>
+
+      {/* NEW: Historical Calorie Logs Archive Panel */}
+      {Object.keys(groupedHistory).length > 0 && (
+        <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+          <h3 className="text-zinc-400 text-[10px] uppercase tracking-widest font-black border-b border-zinc-800/60 pb-2">Vaulted History Log</h3>
+          <div className="space-y-4 max-h-[300px] overflow-y-auto scrollbar-none pr-1">
+            {Object.entries(groupedHistory).map(([date, entries]: any) => {
+              // Calculate daily total metrics for this historical day block
+              const dayTotalKcal = entries.reduce((sum: number, e: any) => sum + e.kcal, 0);
+              const dayTotalProtein = entries.reduce((sum: number, e: any) => sum + (e.protein || 0), 0);
+
+              return (
+                <div key={date} className="bg-zinc-950 border border-zinc-900 rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between items-baseline border-b border-zinc-900 pb-1.5">
+                    <span className="text-[10px] font-bold text-zinc-400">{date}</span>
+                    <span className="text-xs font-black text-zinc-300">
+                      {dayTotalKcal} kcal <span className="text-[9px] text-zinc-500 font-bold ml-1">({dayTotalProtein}g P)</span>
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 divide-y divide-zinc-900/50">
+                    {entries.map((entry: any) => (
+                      <div key={entry.id} className="flex justify-between items-center text-[11px] pt-1.5 first:pt-0">
+                        <span className="text-zinc-500 truncate max-w-[180px]">{entry.name}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-[9px] text-zinc-600 font-mono">P:{entry.protein || 0}g C:{entry.carbs || 0}g</span>
+                          <span className="text-zinc-300 font-bold">{entry.kcal} kcal</span>
+                          <button onClick={() => handleDeleteEntry(entry.id)} className="text-zinc-700 hover:text-red-400 p-0.5 transition-colors">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
